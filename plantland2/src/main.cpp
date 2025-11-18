@@ -8,7 +8,7 @@ WiFiClient espClient;
 PubSubClient client(espClient);
 
 const char* ssid = "ESP32";  
-const char* password = "motdepasse"; 
+
 
 // capteur temperature
 #define DHTPIN 13
@@ -20,8 +20,8 @@ int _moisture,sensor_analog ;
 
 // MQTT Broker
 const char *mqtt_broker = "broker.emqx.io";
-const char *topic = "Ynov/VHT/1/1";
 const int mqtt_port = 1883;
+String Dynamiq_topic;
 
 
 // put function declarations here:
@@ -37,10 +37,15 @@ void setup() {
   //Initialise le capteur DHT11
   dht.begin();
 
-  if(!wm.autoConnect(ssid, password))  // Test d'auto-connexion
+  if(!wm.autoConnect(ssid))  // Test d'auto-connexion
     Serial.println("Erreur de connexion.");  // Si pas de connexion = Erreur
   else
     Serial.println("Connexion etablie !");  // Si connexion = OK
+
+  // Accéder a la mac du client pour ce connecter
+  String mac = WiFi.macAddress();
+  Dynamiq_topic = "Ynov/VHT/" + mac ;
+  Serial.println(Dynamiq_topic);
 
   //connecting to a mqtt broker
   client.setServer(mqtt_broker, mqtt_port);
@@ -94,7 +99,7 @@ void loop() {
 
   // Publier sur le MQTT
   String payload( "{ \"Celsius\": " + String(tempString) + ", \"Humidité\": " + String(humString) + ", \"Sol\": " + String(_moisture) + " }" );  
-  client.publish("Ynov/VHT/1/1", payload.c_str());
+  client.publish(Dynamiq_topic.c_str(), payload.c_str());
 
   
  
