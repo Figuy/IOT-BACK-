@@ -26,7 +26,7 @@ const int mqtt_port = 1883;
 
 // Topic dynamique
 String Code;
-String Dynamiq_topic_envoie;
+String Dynamic_topic_envoie;
 String Dynamic_topic_recois;
 
 int user_id= 0;
@@ -63,12 +63,13 @@ void callback(char* topic, byte* message, unsigned int length) {
     Serial.println("user_id reçu : " + String(user_id));
 
     // Mettre a jour les topic pour enovyer les données
-    Dynamiq_topic_envoie = "Ynov/VHT/" + String(user_id) + "/" + codeFromTopic;
-    Dynamic_topic_recois = "Ynov/VHT/" + String(user_id) + "/" + codeFromTopic + "/cmd";
-
-    //Envoyer la mec de l'esp au site
     String mac = WiFi.macAddress();
     mac.replace(":","");
+    Code = mac.substring(6);
+    Dynamic_topic_envoie = "Ynov/VHT/" + String(user_id) + "/" + Code ;
+    Dynamic_topic_recois = "Ynov/VHT/" + String(user_id) + "/" + Code + "/cmd";
+
+    //Envoyer la mec de l'esp au site
     String reponseTopic = "Ynov/VHT/idClient/" + String(user_id) + "/mac";
     String reponseJson =  "{ \"mac\": \"" + mac + "\" }";
     client.publish(reponseTopic.c_str(), reponseJson.c_str());
@@ -90,24 +91,28 @@ void setup() {
   mac.replace(":", "");
   Code = mac.substring(6);
 
-
-  // Modifier Wifimanager pour avoir le code
-  String msg = "<p><b>CODE À ENREGISTRER SUR LE SITE :</b><br><h2>" + Code + "</h2></p>";
-  WiFiManagerParameter infoText(msg.c_str());
+ // Définir un HTML simple pour la page captive
+  String html = "<!DOCTYPE html><html><head><title>Bienvenue</title></head><body>";
+  html += "<h1>Bienvenue !</h1>";
+  html += "<p>CODE À ENREGISTRER SUR LE SITE :</p>";
+  html += "<h2>" + Code + "</h2>";
+  html += "</body></html>";
+  WiFiManagerParameter infoText(html.c_str());
   wm.addParameter(&infoText);
 
-  Dynamiq_topic_envoie = "Ynov/VHT/" + mac ;
-  Serial.println(Dynamiq_topic_envoie);
+
+  Dynamic_topic_envoie = "Ynov/VHT/" + mac ;
+  Serial.println(Dynamic_topic_envoie);
 
   if(!wm.autoConnect(ssid))  // Test d'auto-connexion
     Serial.println("Erreur de connexion.");  // Si pas de connexion = Erreur
   else
     Serial.println("Connexion etablie !");  // Si connexion = OK
 
-  Dynamiq_topic_envoie = "Ynov/VHT/" + Code ;
+  Dynamic_topic_envoie = "Ynov/VHT/" + Code ;
   Dynamic_topic_recois = "Ynov/VHT/" + Code + "/cmd";
 
-  Serial.println("Topic Publish : " + Dynamiq_topic_envoie);
+  Serial.println("Topic Publish : " + Dynamic_topic_envoie);
   Serial.println("Topic Subscribe : " + Dynamic_topic_recois);
 
   //connecting to a mqtt broker
@@ -167,11 +172,11 @@ void loop() {
 
   // Publier sur le MQTT
   String payload( "{ \"Celsius\": " + String(tempString) + ", \"Humidité\": " + String(humString) + ", \"Sol\": " + String(moisture) + " }" );  
-  client.publish(Dynamiq_topic_envoie.c_str(), payload.c_str());
+  client.publish(Dynamic_topic_envoie.c_str(), payload.c_str());
 
    // Publier seulement si user_id a été reçu
     if (user_id > 0) {
-        String topicToPublish = Dynamiq_topic_envoie;
+        String topicToPublish = Dynamic_topic_envoie;
         
         client.publish(topicToPublish.c_str(), payload.c_str());
         Serial.println("Données publiées sur : " + topicToPublish);
@@ -179,8 +184,8 @@ void loop() {
         Serial.println("En attente de user_id pour publier...");
     }
   
-  // délais de 10 secondes
-  delay(10000);
+  // délais de 5 secondes
+  delay(5000);
 }
 
 
