@@ -2,6 +2,7 @@
 #include <DHT.h>
 #include <WiFiManager.h>
 #include <PubSubClient.h>
+#include <ArduinoJson.h>
 
 WiFiManager wm;
 WiFiClient espClient;
@@ -28,43 +29,52 @@ String Code;
 String Dynamiq_topic_envoie;
 String Dynamic_topic_recois;
 
+int user_id= 0;
 
 void callback(char* topic, byte* message, unsigned int length) {
   Serial.print("Message arrived on topic: ");
   Serial.print(topic);
   Serial.print(". Message: ");
+
+
   String messageTemp;
-  
   for (int i = 0; i < length; i++) {
     Serial.print((char)message[i]);
     messageTemp += (char)message[i];
   }
   Serial.println();
 
-  // Appariage via USER ID
   String topicCode = String(topic);
 
-  if (topicCode.startsWith("Ynov/VHT/idClient/")){
-    // recupérer l'id client via le topic
-    String userId = topicCode.substring(String("Ynov/VHT/idClient").length());
+  if (topicCode.startsWith("Ynov/VHT/idClient/")) {
+ // Extraire le code ESP depuis le topic
+        String codeFromTopic = topicCode.substring(String("Ynov/VHT/idClient/").length());
+        Serial.println("Appairage demandé pour le code ESP : " + codeFromTopic);
 
-    Serial.println("Appairage demandé pour userId :" + userId);
-    // recupère la Mac de l'esp 
+        // Parse JSON pour récupérer user_id
+    DynamicJsonDocument doc(200);
+    DeserializationError error = deserializeJson(doc, messageTemp);
+    if (error) {
+        Serial.println("Erreur JSON: " + String(error.c_str()));
+        return;
+    }
+
+    user_id = doc["user_id"];
+    Serial.println("user_id reçu : " + String(user_id));
+
+    // Mettre a jour les topic pour enovyer les données
+    Dynamiq_topic_envoie = "Ynov/VHT/" + String(user_id) + "/" + codeFromTopic;
+    Dynamic_topic_recois = "Ynov/VHT/" + String(user_id) + "/" + codeFromTopic + "/cmd";
+
+    //Envoyer la mec de l'esp au site
     String mac = WiFi.macAddress();
-    mac.replace(":", "");
-
-    // reponse topic
-    String reponseTopic = "Ynov/VHT/idCLient/" + userId + "/mac";
-
-    String reponseJson = "{ \"mac\": \"" + mac + "\" }";
-
-    // CLient en la réponse
+    mac.replace(":","");
+    String reponseTopic = "Ynov/VHT/idClient/" + String(user_id) + "/mac";
+    String reponseJson =  "{ \"mac\": \"" + mac + "\" }";
     client.publish(reponseTopic.c_str(), reponseJson.c_str());
     Serial.println("Réponse envoyée sur : " + reponseTopic);
   }
-
 }
-
 void setup() {
 
   WiFi.mode(WIFI_STA); 
@@ -103,16 +113,17 @@ void setup() {
   //connecting to a mqtt broker
   client.setServer(mqtt_broker, mqtt_port);
   client.setCallback(callback);
-  client.subscribe("Ynov/VHT:idClient/+");
+  client.subscribe("Ynov/VHT/idClient/+");
   Serial.println("Subscribe to pairing: Ynov/VHT/idClient/+");
 
   //Reconnexion MQTT automatique
   while (!client.connected()) {
-        String client_id = "esp32-client-";
-        client_id += String(WiFi.macAddress());
+        String client_id = "esp32-client-" + WiFi.macAddress();
         Serial.printf("The client %s connects to the public MQTT broker\n", client_id.c_str());
         if (client.connect(client_id.c_str())) {
           Serial.println("Connecté !");
+          client.subscribe("Ynov/VHT/idClient/+");
+          Serial.println("Connection au parrainage : Ynov/VHT/idClient/X");
         } else {
             Serial.print("failed with state ");
             Serial.print(client.state());
@@ -158,6 +169,15 @@ void loop() {
   String payload( "{ \"Celsius\": " + String(tempString) + ", \"Humidité\": " + String(humString) + ", \"Sol\": " + String(moisture) + " }" );  
   client.publish(Dynamiq_topic_envoie.c_str(), payload.c_str());
 
+   // Publier seulement si user_id a été reçu
+    if (user_id > 0) {
+        String topicToPublish = Dynamiq_topic_envoie;
+        
+        client.publish(topicToPublish.c_str(), payload.c_str());
+        Serial.println("Données publiées sur : " + topicToPublish);
+    } else {
+        Serial.println("En attente de user_id pour publier...");
+    }
   
   // délais de 10 secondes
   delay(10000);
