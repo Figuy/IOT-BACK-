@@ -63,14 +63,15 @@ void callback(char* topic, byte* message, unsigned int length) {
     Serial.println("user_id reçu : " + String(user_id));
 
     // Mettre a jour les topic pour enovyer les données
-    String mac = WiFi.macAddress();
-    mac.replace(":","");
-    Code = mac.substring(6);
+
     Dynamic_topic_envoie = "Ynov/VHT/" + String(user_id) + "/" + Code ;
     Dynamic_topic_recois = "Ynov/VHT/" + String(user_id) + "/" + Code + "/cmd";
 
     //Envoyer la mec de l'esp au site
     String reponseTopic = "Ynov/VHT/idClient/" + String(user_id) + "/mac";
+    String mac = WiFi.macAddress();
+    mac.replace(":","");
+    Code = mac.substring(6);
     String reponseJson =  "{ \"mac\": \"" + mac + "\" }";
     client.publish(reponseTopic.c_str(), reponseJson.c_str());
     Serial.println("Réponse envoyée sur : " + reponseTopic);
@@ -175,15 +176,11 @@ void loop() {
   client.publish(Dynamic_topic_envoie.c_str(), payload.c_str());
 
    // Publier seulement si user_id a été reçu
-    if (user_id > 0) {
-        String topicToPublish = Dynamic_topic_envoie;
-        
-        client.publish(topicToPublish.c_str(), payload.c_str());
-        Serial.println("Données publiées sur : " + topicToPublish);
+     if (user_id > 0) {
+        Serial.println("Données publiées sur : " + Dynamic_topic_envoie);
     } else {
         Serial.println("En attente de user_id pour publier...");
     }
-  
   // délais de 5 secondes
   delay(5000);
 }
